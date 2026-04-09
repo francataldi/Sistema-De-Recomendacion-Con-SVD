@@ -117,19 +117,13 @@ Recomendador-SVD/
 ## Correr localmente
 
 ```bash
-git clone https://github.com/francataldi/Recomendador-SVD.git
-cd Recomendador-SVD
+git clone https://github.com/francataldi/Sistema-De-Recomendacion-Con-SVD.git
+cd Sistema-De-Recomendacion-Con-SVD
 
 pip install -r requirements.txt
 
-# Descargar el dataset desde https://grouplens.org/datasets/movielens/100k/
-# y colocarlo en Data/ml-100k/
-
-# Ejecutar el notebook para generar el modelo
-jupyter notebook notebooks/main.ipynb
-
-# Lanzar la app
 streamlit run app.py
+# El modelo se entrena automáticamente al iniciar la app (~15 segundos)
 ```
 
 ---
