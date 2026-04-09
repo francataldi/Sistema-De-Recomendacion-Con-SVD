@@ -14,9 +14,6 @@ st.set_page_config(
 )
 
 # ── Entrenamiento del modelo ─────────────────────────────────
-# @st.cache_resource hace que esto se ejecute UNA sola vez.
-# La primera vez que alguien abre la app tarda ~15 segundos.
-# Después queda en memoria — las siguientes visitas son instantáneas.
 @st.cache_resource
 def entrenar_modelo():
     ruta = os.path.dirname(__file__)
