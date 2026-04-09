@@ -1,0 +1,24 @@
+# Ignorar todo de ml-100k EXCEPTO los dos archivos que necesita la app
+Data/ml-100k/*
+!Data/ml-100k/u.data
+!Data/ml-100k/u.item
+
+# Modelo serializado (se reemplazó por entrenamiento en la app)
+modelo/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Entornos virtuales
+.env
+venv/
+.venv/
+
+# VS Code
+.vscode/
