@@ -1,6 +1,6 @@
 # 🎬 Sistema de Recomendación Híbrido con SVD
 
-> Proyecto de portafolio · Licenciatura en Ciencias de Datos · UBA · 3er año
+> Proyecto Personal · Licenciatura en Ciencias de Datos · UBA · 
 
 **[▶ Ver demo en vivo](https://sistema-de-recomendacion-con-svd.streamlit.app/)**
 
