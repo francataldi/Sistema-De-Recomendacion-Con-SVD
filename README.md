@@ -2,7 +2,7 @@
 
 > Proyecto de portafolio · Licenciatura en Ciencias de Datos · UBA · 3er año
 
-**[▶ Ver demo en vivo](https://sistema-de-recomendacion-con-svd.streamlit.app/)** ← reemplazá esto después del deploy
+**[▶ Ver demo en vivo](https://sistema-de-recomendacion-con-svd.streamlit.app/)**
 
 ---
 
