@@ -99,16 +99,15 @@ Los **factores latentes** son patrones que el algoritmo descubre solo — nadie 
 ```
 Recomendador-SVD/
 │
-├── Data/                        ← NO está en el repo (dataset muy pesado)
+├── Data/
 │   └── ml-100k/
+│       ├── u.data     ← ratings de usuarios
+│       └── u.item     ← metadata de películas
 │
 ├── notebooks/
-│   └── main.ipynb               ← desarrollo completo paso a paso
+│   └── main.ipynb     ← desarrollo completo paso a paso
 │
-├── modelo/
-│   └── modelo_hibrido.pkl       ← modelo entrenado serializado
-│
-├── app.py                       ← interfaz Streamlit
+├── app.py             ← interfaz Streamlit
 ├── requirements.txt
 └── README.md
 ```
