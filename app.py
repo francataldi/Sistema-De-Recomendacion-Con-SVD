@@ -14,11 +14,8 @@ st.set_page_config(
 
 @st.cache_resource
 def cargar_modelo():
-    # Obtiene la ruta de la carpeta donde está ESTE archivo app.py
     ruta_actual = os.path.dirname(__file__)
-    # Construye la ruta absoluta al modelo de forma inteligente
     ruta_pkl = os.path.join(ruta_actual, 'modelo', 'modelo_hibrido.pkl')
-    
     with open(ruta_pkl, 'rb') as f:
         return pickle.load(f)
 
