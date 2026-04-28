@@ -146,3 +146,6 @@ streamlit run app.py
 - [MovieLens 100K — GroupLens](https://grouplens.org/datasets/movielens/100k/)
 - [Matrix Factorization Techniques for Recommender Systems — Koren, Bell & Volinsky (2009)](https://datajobs.com/data-science-repo/Recommender-Systems-%5BNetflix%5D.pdf) — el paper del Netflix Prize que popularizó SVD en recomendación
 - [Streamlit Docs](https://docs.streamlit.io/)
+
+## Autor
+Franco Cataldi Gagliardi · [LinkedIn](https://www.linkedin.com/in/franco-cataldi-gagliardi-2347a9268/)
