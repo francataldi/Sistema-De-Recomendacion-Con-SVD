@@ -40,7 +40,9 @@ def cargar_modelo():
         return pickle.load(f)
 
 
-datos = cargar_modelo()
+# la primera carga del pickle tarda 1-2 segundos; después queda cacheado
+with st.spinner("Cargando el modelo entrenado..."):
+    datos = cargar_modelo()
 modelo_svd = datos['modelo_svd']      # SVD de scikit-surprise ya entrenado
 similitud_df = datos['similitud_df']  # similitud coseno entre películas
 movies = datos['movies']              # títulos y géneros
@@ -278,11 +280,16 @@ def mostrar_recomendaciones(recomendaciones, subtitulo, explicaciones=None):
     explicaciones = explicaciones or {}
 
     # buscamos todos los pósters primero (con caché, así solo la primera
-    # vez por película le pega de verdad a la API)
-    posters = {
-        fila['title']: buscar_poster(fila['title'], API_KEY_TMDB)
-        for _, fila in recomendaciones.iterrows()
-    }
+    # vez por película le pega de verdad a la API). Las llamadas a TMDb
+    # son la única espera real acá, por eso el spinner va solo si hay key.
+    if API_KEY_TMDB:
+        with st.spinner("Buscando pósters en TMDb..."):
+            posters = {
+                fila['title']: buscar_poster(fila['title'], API_KEY_TMDB)
+                for _, fila in recomendaciones.iterrows()
+            }
+    else:
+        posters = {}
 
     POR_FILA = 5
     filas = list(recomendaciones.iterrows())
@@ -346,10 +353,10 @@ with tab_nuevo:
         if len(semillas) < 3:
             st.warning("Puntuá al menos 3 películas para que podamos recomendarte algo.")
         else:
-            with st.spinner("Calculando recomendaciones..."):
-                recomendaciones = recomendar_para_usuario_nuevo(
-                    similitud_df, movies, semillas, n=n_recomendaciones
-                )
+            # sin spinner: con el modelo pre-entrenado esto es instantáneo
+            recomendaciones = recomendar_para_usuario_nuevo(
+                similitud_df, movies, semillas, n=n_recomendaciones
+            )
             # guardamos el resultado en session_state para que sobreviva a
             # los reruns (cada interacción con cualquier widget re-ejecuta
             # todo el script; sin esto, las recomendaciones desaparecerían)
@@ -405,8 +412,8 @@ with tab_existente:
 
     if st.button("🔍 Ver recomendaciones", type="primary",
                  use_container_width=True, key="btn_existente"):
-        with st.spinner("Calculando recomendaciones..."):
-            recomendaciones = recomendar(userId=userId, alpha=alpha, n=n_recomendaciones)
+        # sin spinner: con el modelo pre-entrenado esto es instantáneo
+        recomendaciones = recomendar(userId=userId, alpha=alpha, n=n_recomendaciones)
 
         if recomendaciones is None:
             st.error(f"El usuario {userId} no existe en el dataset.")
