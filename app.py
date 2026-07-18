@@ -184,6 +184,37 @@ with st.expander("⚙️ Configuración avanzada"):
 st.divider()
 
 
+# ── Tags de género ───────────────────────────────────────────
+# Un color fijo por género (los badges de Streamlit soportan esta paleta
+# limitada, así que algunos géneros comparten color, pero cada género
+# tiene SIEMPRE el mismo — la consistencia es lo que permite reconocer
+# patrones visuales).
+COLOR_GENERO = {
+    'Action': 'red',      'Adventure': 'orange', 'Animation': 'violet',
+    'Children': 'green',  'Comedy': 'orange',    'Crime': 'gray',
+    'Documentary': 'gray', 'Drama': 'blue',      'Fantasy': 'violet',
+    'Film-Noir': 'gray',  'Horror': 'red',       'Musical': 'green',
+    'Mystery': 'blue',    'Romance': 'red',      'Sci-Fi': 'blue',
+    'Thriller': 'orange', 'War': 'gray',         'Western': 'orange',
+    'unknown': 'gray',
+}
+GENERO_COLS = list(COLOR_GENERO.keys())
+
+# géneros de cada película, indexados por título (para las tarjetas)
+generos_por_titulo = (
+    movies.drop_duplicates('title').set_index('title')[GENERO_COLS]
+)
+
+
+def badges_de_generos(titulo):
+    """Markdown con un badge de color por género de la película."""
+    if titulo not in generos_por_titulo.index:
+        return ""
+    fila = generos_por_titulo.loc[titulo]
+    generos = [g for g in GENERO_COLS if fila[g] == 1]
+    return " ".join(f":{COLOR_GENERO[g]}-badge[{g}]" for g in generos)
+
+
 PLACEHOLDER_POSTER = """
 <div style="aspect-ratio:2/3; display:flex; align-items:center;
             justify-content:center; background:rgba(128,128,128,0.15);
@@ -214,6 +245,9 @@ def mostrar_recomendaciones(recomendaciones, subtitulo):
                 else:
                     st.markdown(PLACEHOLDER_POSTER, unsafe_allow_html=True)
                 st.markdown(f"**{fila['title']}**")
+                badges = badges_de_generos(fila['title'])
+                if badges:
+                    st.markdown(badges)
                 st.progress(min(max(float(fila['score_final']), 0.0), 1.0),
                             text=f"Score {fila['score_final']:.3f}")
 
