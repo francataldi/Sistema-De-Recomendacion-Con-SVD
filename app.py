@@ -7,6 +7,7 @@ import requests
 import streamlit as st
 
 from recomendador import (
+    explicar_recomendacion,
     peliculas_populares,
     recomendar_hibrido,
     recomendar_para_usuario_nuevo,
@@ -200,19 +201,40 @@ COLOR_GENERO = {
 }
 GENERO_COLS = list(COLOR_GENERO.keys())
 
-# géneros de cada película, indexados por título (para las tarjetas)
-generos_por_titulo = (
-    movies.drop_duplicates('title').set_index('title')[GENERO_COLS]
-)
+# géneros y título de cada película, indexados por movieId
+generos_por_id = movies.set_index('movieId')[GENERO_COLS]
+titulo_de = movies.set_index('movieId')['title']
 
 
-def badges_de_generos(titulo):
+def badges_de_generos(movieId):
     """Markdown con un badge de color por género de la película."""
-    if titulo not in generos_por_titulo.index:
+    if movieId not in generos_por_id.index:
         return ""
-    fila = generos_por_titulo.loc[titulo]
+    fila = generos_por_id.loc[movieId]
     generos = [g for g in GENERO_COLS if fila[g] == 1]
     return " ".join(f":{COLOR_GENERO[g]}-badge[{g}]" for g in generos)
+
+
+def explicaciones_para(recomendaciones, ratings_usuario, por_peso=False):
+    """
+    Arma el texto de 'por qué te recomiendo esto' para cada película del
+    Top-N, usando explicar_recomendacion() del módulo compartido.
+    Devuelve un dict movieId -> texto.
+    """
+    textos = {}
+    for m in recomendaciones['movieId']:
+        exp = explicar_recomendacion(similitud_df, ratings_usuario, m,
+                                     por_peso=por_peso)
+        if exp is None:
+            continue
+        mid_similar, _, rating = exp
+        if por_peso:
+            textos[m] = (f"Tu semilla que más pesó: **{titulo_de[mid_similar]}** "
+                         f"(le pusiste {int(rating)}★)")
+        else:
+            textos[m] = (f"Similar a **{titulo_de[mid_similar]}** "
+                         f"(que calificaste con {int(rating)}★)")
+    return textos
 
 
 PLACEHOLDER_POSTER = """
@@ -222,9 +244,10 @@ PLACEHOLDER_POSTER = """
 """
 
 
-def mostrar_recomendaciones(recomendaciones, subtitulo):
+def mostrar_recomendaciones(recomendaciones, subtitulo, explicaciones=None):
     st.subheader(f"Top {len(recomendaciones)} recomendaciones")
     st.markdown(subtitulo)
+    explicaciones = explicaciones or {}
 
     # buscamos todos los pósters primero (con caché, así solo la primera
     # vez por película le pega de verdad a la API)
@@ -245,11 +268,13 @@ def mostrar_recomendaciones(recomendaciones, subtitulo):
                 else:
                     st.markdown(PLACEHOLDER_POSTER, unsafe_allow_html=True)
                 st.markdown(f"**{fila['title']}**")
-                badges = badges_de_generos(fila['title'])
+                badges = badges_de_generos(fila['movieId'])
                 if badges:
                     st.markdown(badges)
                 st.progress(min(max(float(fila['score_final']), 0.0), 1.0),
                             text=f"Score {fila['score_final']:.3f}")
+                if fila['movieId'] in explicaciones:
+                    st.caption(explicaciones[fila['movieId']])
 
 
 if es_usuario_nuevo:
@@ -289,7 +314,10 @@ if es_usuario_nuevo:
                 recomendaciones,
                 "Calculadas **solo con el modelo de contenido** (similitud de "
                 "géneros con tus películas semilla). El modelo colaborativo "
-                "necesita historial dentro del dataset, así que acá no participa."
+                "necesita historial dentro del dataset, así que acá no participa.",
+                explicaciones=explicaciones_para(
+                    recomendaciones, pd.Series(semillas), por_peso=True
+                ),
             )
 
 else:
@@ -318,10 +346,15 @@ else:
         if recomendaciones is None:
             st.error(f"El usuario {userId} no existe en el dataset.")
         else:
+            historial = (
+                ratings[ratings['userId'] == userId]
+                .set_index('movieId')['rating']
+            )
             mostrar_recomendaciones(
                 recomendaciones,
                 f"Calculadas con alpha=**{alpha:.1f}** "
-                f"({int(alpha*100)}% colaborativo · {int((1-alpha)*100)}% contenido)"
+                f"({int(alpha*100)}% colaborativo · {int((1-alpha)*100)}% contenido)",
+                explicaciones=explicaciones_para(recomendaciones, historial),
             )
 
 st.divider()

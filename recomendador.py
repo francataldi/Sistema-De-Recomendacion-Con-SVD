@@ -78,7 +78,7 @@ def recomendar_hibrido(modelo_svd, similitud_df, movies, ratings_usuario,
     return (
         pd.DataFrame({'movieId': top_n.index, 'score_final': top_n.values})
         .merge(movies[['movieId', 'title']], on='movieId')
-        [['title', 'score_final']]
+        [['movieId', 'title', 'score_final']]
     )
 
 
@@ -129,5 +129,33 @@ def recomendar_para_usuario_nuevo(similitud_df, movies, semillas, n=10):
     return (
         pd.DataFrame({'movieId': top_n.index, 'score_final': top_n.values})
         .merge(movies[['movieId', 'title']], on='movieId')
-        [['title', 'score_final']]
+        [['movieId', 'title', 'score_final']]
     )
+
+
+def explicar_recomendacion(similitud_df, ratings_usuario, movieId,
+                           por_peso=False):
+    """
+    Explica una recomendación: de las películas que el usuario ya puntuó,
+    ¿cuál es la que justifica esta recomendación?
+
+    - por_peso=False (híbrido): devuelve la película vista MÁS SIMILAR en
+      género a la recomendada.
+    - por_peso=True (usuario nuevo): devuelve la semilla que MÁS PESÓ en el
+      score de contenido, es decir la que maximiza similitud x rating —
+      exactamente el término más grande de la suma que calcula
+      score_contenido().
+
+    Devuelve (movieId_similar, similitud, rating_dado), o None si no hay
+    con qué explicar.
+    """
+    vistas = ratings_usuario[ratings_usuario.index.isin(similitud_df.index)]
+    if len(vistas) == 0 or movieId not in similitud_df.index:
+        return None
+
+    sims = similitud_df.loc[movieId, vistas.index]
+    if por_peso:
+        mejor = (sims * vistas).idxmax()
+    else:
+        mejor = sims.idxmax()
+    return mejor, float(sims.loc[mejor]), float(vistas.loc[mejor])
