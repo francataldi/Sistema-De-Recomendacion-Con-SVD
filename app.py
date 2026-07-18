@@ -1,7 +1,9 @@
 import os
 import pickle
+import re
 
 import pandas as pd
+import requests
 import streamlit as st
 
 from recomendador import (
@@ -44,6 +46,79 @@ movies = datos['movies']              # títulos y géneros
 ratings = datos['ratings']            # historial de ratings
 ALPHA = datos['alpha']                # alpha óptimo (según NDCG@10)
 K_FACTORES = datos['k']               # k óptimo (según RMSE de test)
+
+
+# ── Pósters vía API de TMDb ──────────────────────────────────
+# La API key NUNCA va en el código: se lee de st.secrets, que Streamlit
+# toma de .streamlit/secrets.toml en local (ignorado por git) o del panel
+# de Secrets en Streamlit Cloud. Sin key, la app funciona en modo texto.
+
+def obtener_api_key_tmdb():
+    try:
+        return st.secrets["TMDB_API_KEY"]
+    except Exception:
+        # sin secrets.toml o sin la key: modo sin pósters, no es un error
+        return None
+
+
+def limpiar_titulo(titulo):
+    """
+    Convierte un título de MovieLens en (título limpio, año) para buscarlo
+    en TMDb. Ej: "Shawshank Redemption, The (1994)" -> ("The Shawshank
+    Redemption", 1994). MovieLens pone el artículo al final y el año entre
+    paréntesis; TMDb espera el título natural y el año aparte.
+    """
+    m = re.search(r'\((\d{4})\)\s*$', titulo)
+    anio = int(m.group(1)) if m else None
+
+    limpio = re.sub(r'\s*\(\d{4}\)\s*$', '', titulo)
+    # algunos títulos traen un título alternativo entre paréntesis
+    # (ej. "Like Water For Chocolate (Como agua para chocolate)")
+    limpio = re.sub(r'\s*\([^)]*\)\s*$', '', limpio)
+    # artículo al final -> al principio
+    m = re.match(r'^(?P<resto>.+),\s+(?P<articulo>The|A|An|La|Le|Les|Los|El|Il|Das|Der|Die)$',
+                 limpio)
+    if m:
+        limpio = f"{m.group('articulo')} {m.group('resto')}"
+    return limpio.strip(), anio
+
+
+@st.cache_data(ttl=24 * 3600, show_spinner=False)
+def buscar_poster(titulo, api_key):
+    """
+    Busca el póster de una película en TMDb y devuelve la URL completa de
+    la imagen, o None si no la encuentra o la request falla (nunca tira
+    excepción: los pósters son un plus visual, no funcionalidad core).
+    El caché de 24h evita repetir llamadas por la misma película (TMDb
+    tiene rate limits).
+    """
+    if not api_key:
+        return None
+    try:
+        query, anio = limpiar_titulo(titulo)
+        params = {'api_key': api_key, 'query': query}
+        if anio:
+            params['year'] = anio
+        r = requests.get(
+            'https://api.themoviedb.org/3/search/movie',
+            params=params, timeout=5
+        )
+        r.raise_for_status()
+        resultados = r.json().get('results', [])
+        if resultados and resultados[0].get('poster_path'):
+            return f"https://image.tmdb.org/t/p/w342{resultados[0]['poster_path']}"
+    except Exception:
+        pass
+    return None
+
+
+API_KEY_TMDB = obtener_api_key_tmdb()
+if API_KEY_TMDB is None:
+    st.info(
+        "Sin API key de TMDb configurada — las recomendaciones se muestran "
+        "sin póster. (Se configura en `.streamlit/secrets.toml` como "
+        "`TMDB_API_KEY`.)"
+    )
 
 
 # ── Lógica del sistema híbrido (vive en recomendador.py) ─────
@@ -109,21 +184,38 @@ with st.expander("⚙️ Configuración avanzada"):
 st.divider()
 
 
+PLACEHOLDER_POSTER = """
+<div style="aspect-ratio:2/3; display:flex; align-items:center;
+            justify-content:center; background:rgba(128,128,128,0.15);
+            border-radius:8px; font-size:2.5rem;">🎬</div>
+"""
+
+
 def mostrar_recomendaciones(recomendaciones, subtitulo):
     st.subheader(f"Top {len(recomendaciones)} recomendaciones")
     st.markdown(subtitulo)
-    st.dataframe(
-        recomendaciones
-        .rename(columns={'title': 'Película', 'score_final': 'Score'})
-        .assign(Score=lambda df: df['Score'].round(3)),
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "Score": st.column_config.ProgressColumn(
-                "Score", min_value=0, max_value=1, format="%.3f"
-            )
-        }
-    )
+
+    # buscamos todos los pósters primero (con caché, así solo la primera
+    # vez por película le pega de verdad a la API)
+    posters = {
+        fila['title']: buscar_poster(fila['title'], API_KEY_TMDB)
+        for _, fila in recomendaciones.iterrows()
+    }
+
+    POR_FILA = 5
+    filas = list(recomendaciones.iterrows())
+    for inicio in range(0, len(filas), POR_FILA):
+        columnas = st.columns(POR_FILA)
+        for col, (_, fila) in zip(columnas, filas[inicio:inicio + POR_FILA]):
+            with col:
+                url = posters.get(fila['title'])
+                if url:
+                    st.image(url, use_container_width=True)
+                else:
+                    st.markdown(PLACEHOLDER_POSTER, unsafe_allow_html=True)
+                st.markdown(f"**{fila['title']}**")
+                st.progress(min(max(float(fila['score_final']), 0.0), 1.0),
+                            text=f"Score {fila['score_final']:.3f}")
 
 
 if es_usuario_nuevo:
