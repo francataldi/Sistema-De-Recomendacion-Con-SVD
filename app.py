@@ -215,6 +215,46 @@ def badges_de_generos(movieId):
     return " ".join(f":{COLOR_GENERO[g]}-badge[{g}]" for g in generos)
 
 
+def perfil_de_generos(ratings_usuario):
+    """
+    Rating promedio que el usuario le dio a cada género, según su
+    historial (o sus semillas si es un usuario nuevo). Devuelve una Series
+    género -> promedio, solo con los géneros de los que hay algún dato,
+    o None si no hay nada que graficar.
+    """
+    ids = generos_por_id.index.intersection(ratings_usuario.index)
+    if len(ids) == 0:
+        return None
+    generos_vistos = generos_por_id.loc[ids]
+
+    promedios = {}
+    for g in GENERO_COLS:
+        if g == 'unknown':
+            continue
+        ids_genero = generos_vistos.index[generos_vistos[g] == 1]
+        if len(ids_genero) > 0:
+            promedios[g] = ratings_usuario.loc[ids_genero].mean()
+    if not promedios:
+        return None
+    return pd.Series(promedios).sort_values(ascending=False)
+
+
+def mostrar_perfil_de_generos(ratings_usuario, titulo_expander):
+    perfil = perfil_de_generos(ratings_usuario)
+    if perfil is None:
+        return
+    with st.expander(titulo_expander):
+        st.caption(
+            "Rating promedio que le diste a cada género. Es el 'perfil de "
+            "gustos' que el modelo de contenido usa para recomendarte."
+        )
+        st.bar_chart(
+            perfil, horizontal=True,
+            height=max(220, 26 * len(perfil)),
+            x_label="Rating promedio", y_label="",
+        )
+
+
 def explicaciones_para(recomendaciones, ratings_usuario, por_peso=False):
     """
     Arma el texto de 'por qué te recomiendo esto' para cada película del
@@ -302,6 +342,12 @@ if es_usuario_nuevo:
 
     st.caption(f"Películas puntuadas: {len(semillas)} (mínimo 3)")
 
+    if semillas:
+        mostrar_perfil_de_generos(
+            pd.Series(semillas),
+            "📊 Tu perfil de gustos según lo que puntuaste"
+        )
+
     if st.button("🔍 Ver recomendaciones", type="primary", use_container_width=True):
         if len(semillas) < 3:
             st.warning("Puntuá al menos 3 películas para que podamos recomendarte algo.")
@@ -338,6 +384,11 @@ else:
                 ),
                 hide_index=True, use_container_width=True
             )
+
+        mostrar_perfil_de_generos(
+            vistas_usuario.set_index('movieId')['rating'],
+            f"📊 Perfil de gustos por género del usuario {userId}"
+        )
 
     if st.button("🔍 Ver recomendaciones", type="primary", use_container_width=True):
         with st.spinner("Calculando recomendaciones..."):
