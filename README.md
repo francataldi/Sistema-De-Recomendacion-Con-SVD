@@ -1,8 +1,9 @@
 # 🎬 Sistema de Recomendación Híbrido con SVD
 
-> Proyecto Personal · Licenciatura en Ciencias de Datos · UBA · 
+> Proyecto de portafolio · Licenciatura en Ciencias de Datos · UBA · 3er año
 
-**[▶ Ver demo en vivo](https://sistema-de-recomendacion-con-svd.streamlit.app/)**
+<!-- TODO: actualizar tras el deploy con el link real de Streamlit Cloud -->
+**Demo en vivo:** próximamente (deploy pendiente)
 
 ---
 
@@ -52,45 +53,59 @@ Cada película está representada como un vector de 19 géneros binarios. La sim
 
 ### Modelo Híbrido
 
-Cada enfoque resuelve el punto débil del otro. La combinación es:
+La combinación es:
 
 ```
 score_final = α × score_colaborativo + (1 - α) × score_contenido
 ```
 
-El valor óptimo de α se encontró evaluando el RMSE sobre un conjunto de prueba separado.
+El valor óptimo de α se encontró maximizando NDCG@10 sobre un conjunto de prueba separado.
+
+**Qué resuelve el híbrido y qué no** (esto es importante decirlo con precisión):
+
+- **Cold start de películas nuevas**: lo resuelve el modelo de contenido, porque solo necesita los géneros de la película — no hace falta que nadie la haya rateado todavía.
+- **Cold start de usuarios nuevos**: *no* se resuelve automáticamente por ser híbrido. Ambos scores necesitan historial del usuario: el colaborativo necesita que el usuario haya estado en el entrenamiento, y el de contenido necesita saber qué películas le gustaron. Para usuarios nuevos, la app implementa un flujo de **películas semilla**: el usuario puntúa al menos 3 películas populares y con eso se calculan recomendaciones usando solo el modelo de contenido (el colaborativo no tiene factores aprendidos para un usuario que nunca vio).
+- **Sobre-especialización del contenido**: en el ranking Top-N, la mezcla 70/30 le gana a cada modelo por separado, aportando diversidad real.
 
 ---
 
-## Por qué SVD
+## Por qué SVD (y cuál SVD)
 
 La matriz usuario × película tiene 943 filas y 1.682 columnas — pero el **93.7% de las celdas están vacías**. Una matriz así se llama *sparse* (dispersa) y no se puede usar directamente para recomendar.
 
-SVD descompone esa matriz en tres matrices más pequeñas:
+La idea de la factorización es representar a cada usuario y a cada película con un vector de `k` **factores latentes** — patrones que el algoritmo descubre solo, nadie los nombra ni los define — y predecir cada rating como:
 
 ```
-M ≈ U × Σ × Vᵀ
-
-U   →  943  × k   (perfil de cada usuario en k factores latentes)
-Σ   →  k    × k   (importancia de cada factor)
-Vᵀ  →  k    × 1682  (perfil de cada película en los mismos factores)
+rating estimado = media global + sesgo del usuario + sesgo de la película + (usuario · película)
 ```
 
-Los **factores latentes** son patrones que el algoritmo descubre solo — nadie los nombra ni los define. Al reconstruir la matriz desde estas tres, los huecos quedan "rellenados" con ratings estimados. Esas estimaciones son las recomendaciones.
+Este proyecto usa el algoritmo `SVD` de `scikit-surprise` (el "Funk SVD" del Netflix Prize), que ajusta esos factores por descenso de gradiente regularizado **solo sobre los ratings observados**.
+
+**Nota pedagógica:** la primera versión del proyecto usaba `scipy.sparse.linalg.svds` sobre la matriz densa, rellenando las celdas vacías con la media de cada usuario. Eso es un error metodológico (el modelo termina aprendiendo a reproducir el relleno artificial, no los gustos reales) y el notebook lo documenta paso a paso como contraejemplo, junto con la corrección.
 
 ---
 
 ## Resultados
 
-| Experimento | Resultado |
-|---|---|
-| Sparsity de la matriz | 93.7% |
-| Factores latentes usados (k) | 50 |
-| RMSE colaborativo (k=50, sobre entrenamiento) | 0.728 |
-| Mejor alpha encontrado | 0.7 |
-| RMSE del modelo híbrido (sobre conjunto de prueba) | 1.188 |
+El proyecto evalúa dos tareas distintas, cada una con su métrica correcta:
 
-> El RMSE sobre entrenamiento (0.728) mide qué tan bien SVD reconstruye datos que ya vio. El RMSE sobre prueba (1.188) mide la capacidad real de predicción sobre datos nuevos — ese es el número honesto.
+**Tarea 1 — Predicción de rating** (¿cuántas estrellas le pondría el usuario a esta película?), evaluada con RMSE sobre un 20% de test que el modelo nunca vio:
+
+| Modelo | RMSE test |
+|---|---|
+| Baseline: media global | 1.130 |
+| Baseline: media + sesgo de usuario + sesgo de película | 0.965 |
+| **SVD scikit-surprise (k=10 óptimo)** | **0.933** |
+
+**Tarea 2 — Ranking Top-10** (¿qué 10 películas le muestro primero?), evaluada con métricas de ranking (relevante = rating ≥ 4 en test):
+
+| Configuración | Precision@10 | Recall@10 | NDCG@10 |
+|---|---|---|---|
+| Solo contenido (alpha=0) | 0.018 | 0.018 | 0.022 |
+| Solo colaborativo (alpha=1) | 0.066 | 0.045 | 0.072 |
+| **Híbrido (alpha=0.7 óptimo)** | **0.072** | **0.057** | **0.087** |
+
+> Para predecir ratings el colaborativo hace casi todo el trabajo; para rankear el Top-10, la mezcla 70% colaborativo / 30% contenido le gana a ambos modelos por separado. Los detalles y el porqué de cada decisión están documentados paso a paso en el notebook.
 
 ---
 
@@ -99,15 +114,15 @@ Los **factores latentes** son patrones que el algoritmo descubre solo — nadie 
 ```
 Recomendador-SVD/
 │
-├── Data/
+├── Data/                        ← NO está en el repo (se descarga aparte)
 │   └── ml-100k/
-│       ├── u.data     ← ratings de usuarios
-│       └── u.item     ← metadata de películas
 │
-├── notebooks/
-│   └── main.ipynb     ← desarrollo completo paso a paso
+├── modelo/
+│   └── modelo_hibrido.pkl       ← modelo entrenado serializado (lo genera el notebook)
 │
-├── app.py             ← interfaz Streamlit
+├── main.ipynb                   ← desarrollo completo paso a paso
+├── recomendador.py              ← lógica de recomendación compartida (notebook + app)
+├── app.py                       ← interfaz Streamlit
 ├── requirements.txt
 └── README.md
 ```
@@ -117,13 +132,21 @@ Recomendador-SVD/
 ## Correr localmente
 
 ```bash
-git clone https://github.com/francataldi/Sistema-De-Recomendacion-Con-SVD.git
-cd Sistema-De-Recomendacion-Con-SVD
+git clone https://github.com/francataldi/Recomendador-SVD.git
+cd Recomendador-SVD
 
 pip install -r requirements.txt
 
+# Descargar el dataset desde https://grouplens.org/datasets/movielens/100k/
+# y colocarlo en Data/ml-100k/
+
+# (Opcional) Ejecutar el notebook para regenerar el modelo.
+# El repo ya incluye modelo/modelo_hibrido.pkl, así que la app
+# funciona directo; el notebook está en la raíz del repo.
+jupyter notebook main.ipynb
+
+# Lanzar la app
 streamlit run app.py
-# El modelo se entrena automáticamente al iniciar la app (~15 segundos)
 ```
 
 ---
@@ -132,11 +155,13 @@ streamlit run app.py
 
 | Herramienta | Uso |
 |---|---|
-| Python 3.x | Lenguaje base |
+| Python 3.11 | Lenguaje base |
 | pandas | Carga y manipulación de datos |
-| numpy | Álgebra lineal, SVD |
-| scipy | `svds` — SVD eficiente para matrices sparse |
-| scikit-learn | Similitud coseno, métricas |
+| numpy | Álgebra lineal |
+| scikit-surprise | SVD por gradiente descendente (modelo colaborativo) |
+| scipy | `svds` — usado en la versión inicial (contraejemplo pedagógico) |
+| scikit-learn | Similitud coseno, split train/test |
+| matplotlib / seaborn | Gráficos del notebook |
 | Streamlit | Interfaz web y deploy |
 
 ---
@@ -146,6 +171,3 @@ streamlit run app.py
 - [MovieLens 100K — GroupLens](https://grouplens.org/datasets/movielens/100k/)
 - [Matrix Factorization Techniques for Recommender Systems — Koren, Bell & Volinsky (2009)](https://datajobs.com/data-science-repo/Recommender-Systems-%5BNetflix%5D.pdf) — el paper del Netflix Prize que popularizó SVD en recomendación
 - [Streamlit Docs](https://docs.streamlit.io/)
-
-## Autor
-Franco Cataldi Gagliardi · [LinkedIn](https://www.linkedin.com/in/franco-cataldi-gagliardi-2347a9268/)
