@@ -350,15 +350,29 @@ with tab_nuevo:
                 recomendaciones = recomendar_para_usuario_nuevo(
                     similitud_df, movies, semillas, n=n_recomendaciones
                 )
-            mostrar_recomendaciones(
-                recomendaciones,
-                "Calculadas **solo con el modelo de contenido** (similitud de "
-                "géneros con tus películas semilla). El modelo colaborativo "
-                "necesita historial dentro del dataset, así que acá no participa.",
-                explicaciones=explicaciones_para(
+            # guardamos el resultado en session_state para que sobreviva a
+            # los reruns (cada interacción con cualquier widget re-ejecuta
+            # todo el script; sin esto, las recomendaciones desaparecerían)
+            st.session_state['resultado_nuevo'] = {
+                'recomendaciones': recomendaciones,
+                'subtitulo': (
+                    "Calculadas **solo con el modelo de contenido** (similitud "
+                    "de géneros con tus películas semilla). El modelo "
+                    "colaborativo necesita historial dentro del dataset, así "
+                    "que acá no participa."
+                ),
+                'explicaciones': explicaciones_para(
                     recomendaciones, pd.Series(semillas), por_peso=True
                 ),
-            )
+            }
+
+    # se muestra desde session_state: persiste hasta el próximo cálculo
+    if 'resultado_nuevo' in st.session_state:
+        resultado = st.session_state['resultado_nuevo']
+        mostrar_recomendaciones(
+            resultado['recomendaciones'], resultado['subtitulo'],
+            explicaciones=resultado['explicaciones'],
+        )
 
 with tab_existente:
     # ── Usuario existente: flujo híbrido normal ──────────────
@@ -401,12 +415,25 @@ with tab_existente:
                 ratings[ratings['userId'] == userId]
                 .set_index('movieId')['rating']
             )
-            mostrar_recomendaciones(
-                recomendaciones,
-                f"Calculadas con alpha=**{alpha:.1f}** "
-                f"({int(alpha*100)}% colaborativo · {int((1-alpha)*100)}% contenido)",
-                explicaciones=explicaciones_para(recomendaciones, historial),
-            )
+            # persistimos el resultado para que no desaparezca cuando otro
+            # widget (el slider de alpha, el sidebar) provoque un rerun
+            st.session_state['resultado_existente'] = {
+                'recomendaciones': recomendaciones,
+                'subtitulo': (
+                    f"Para el usuario **{userId}**, con alpha=**{alpha:.1f}** "
+                    f"({int(alpha*100)}% colaborativo · "
+                    f"{int((1-alpha)*100)}% contenido)"
+                ),
+                'explicaciones': explicaciones_para(recomendaciones, historial),
+            }
+
+    # se muestra desde session_state: persiste hasta el próximo cálculo
+    if 'resultado_existente' in st.session_state:
+        resultado = st.session_state['resultado_existente']
+        mostrar_recomendaciones(
+            resultado['recomendaciones'], resultado['subtitulo'],
+            explicaciones=resultado['explicaciones'],
+        )
 
 st.divider()
 st.caption(
