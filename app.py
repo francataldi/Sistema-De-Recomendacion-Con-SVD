@@ -144,14 +144,17 @@ st.markdown(
     "Ingresá tu ID de usuario y el sistema predice qué películas te van a gustar."
 )
 
-st.divider()
+# ── Configuración (sidebar, para dejar limpio el flujo principal) ──
+with st.sidebar:
+    st.header("⚙️ Configuración")
 
-n_recomendaciones = st.number_input(
-    label="Cantidad de recomendaciones",
-    min_value=5, max_value=20, value=10, step=5
-)
+    n_recomendaciones = st.number_input(
+        label="Cantidad de recomendaciones",
+        min_value=5, max_value=20, value=10, step=5
+    )
 
-with st.expander("⚙️ Configuración avanzada"):
+    st.divider()
+
     st.markdown(
         "El parámetro **alpha** controla el balance entre los dos modelos. "
         f"El valor óptimo ({ALPHA}) fue elegido maximizando NDCG@10 "
