@@ -146,25 +146,10 @@ st.markdown(
 
 st.divider()
 
-modo = st.radio(
-    "¿Quién sos?",
-    ["Usuario del dataset (ID 1 a 943)", "Usuario nuevo (sin historial)"],
-    horizontal=True,
+n_recomendaciones = st.number_input(
+    label="Cantidad de recomendaciones",
+    min_value=5, max_value=20, value=10, step=5
 )
-es_usuario_nuevo = modo.startswith("Usuario nuevo")
-
-col1, col2 = st.columns([2, 1])
-with col1:
-    if not es_usuario_nuevo:
-        userId = st.number_input(
-            label="ID de usuario (1 a 943)",
-            min_value=1, max_value=943, value=1, step=1
-        )
-with col2:
-    n_recomendaciones = st.number_input(
-        label="Cantidad de recomendaciones",
-        min_value=5, max_value=20, value=10, step=5
-    )
 
 with st.expander("⚙️ Configuración avanzada"):
     st.markdown(
@@ -317,7 +302,12 @@ def mostrar_recomendaciones(recomendaciones, subtitulo, explicaciones=None):
                     st.caption(explicaciones[fila['movieId']])
 
 
-if es_usuario_nuevo:
+# Cada modo vive en su propio tab. OJO: a diferencia del st.radio anterior,
+# con tabs AMBOS flujos se renderizan siempre (el tab no activo queda
+# oculto), por eso los widgets repetidos llevan key único.
+tab_existente, tab_nuevo = st.tabs(["👤 Usuario del dataset", "✨ Usuario nuevo"])
+
+with tab_nuevo:
     # ── Cold start: usuario sin historial ────────────────────
     # El modelo colaborativo no sabe nada de un usuario que no estaba en el
     # entrenamiento, así que le pedimos que puntúe algunas películas
@@ -348,7 +338,8 @@ if es_usuario_nuevo:
             "📊 Tu perfil de gustos según lo que puntuaste"
         )
 
-    if st.button("🔍 Ver recomendaciones", type="primary", use_container_width=True):
+    if st.button("🔍 Ver recomendaciones", type="primary",
+                 use_container_width=True, key="btn_nuevo"):
         if len(semillas) < 3:
             st.warning("Puntuá al menos 3 películas para que podamos recomendarte algo.")
         else:
@@ -366,8 +357,13 @@ if es_usuario_nuevo:
                 ),
             )
 
-else:
+with tab_existente:
     # ── Usuario existente: flujo híbrido normal ──────────────
+    userId = st.number_input(
+        label="ID de usuario (1 a 943)",
+        min_value=1, max_value=943, value=1, step=1
+    )
+
     vistas_usuario = ratings[ratings['userId'] == userId]
     if not vistas_usuario.empty:
         with st.expander(
@@ -390,7 +386,8 @@ else:
             f"📊 Perfil de gustos por género del usuario {userId}"
         )
 
-    if st.button("🔍 Ver recomendaciones", type="primary", use_container_width=True):
+    if st.button("🔍 Ver recomendaciones", type="primary",
+                 use_container_width=True, key="btn_existente"):
         with st.spinner("Calculando recomendaciones..."):
             recomendaciones = recomendar(userId=userId, alpha=alpha, n=n_recomendaciones)
 
