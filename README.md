@@ -2,9 +2,7 @@
 
 > Proyecto de portafolio · Licenciatura en Ciencias de Datos · UBA · 3er año
 
-<!-- TODO: actualizar tras el deploy con el link real de Streamlit Cloud -->
-**Demo en vivo:** aún no desplegada — pendiente de deploy en Streamlit
-Community Cloud.
+**Demo en vivo:** [sistema-de-recomendacion-con-svd.streamlit.app](https://sistema-de-recomendacion-con-svd.streamlit.app/)
 
 ---
 
