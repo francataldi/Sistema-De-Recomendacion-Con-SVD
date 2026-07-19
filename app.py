@@ -299,7 +299,7 @@ def mostrar_recomendaciones(recomendaciones, subtitulo, explicaciones=None):
             with col:
                 url = posters.get(fila['title'])
                 if url:
-                    st.image(url, use_container_width=True)
+                    st.image(url, width='stretch')
                 else:
                     st.markdown(PLACEHOLDER_POSTER, unsafe_allow_html=True)
                 st.markdown(f"**{fila['title']}**")
@@ -349,7 +349,7 @@ with tab_nuevo:
         )
 
     if st.button("🔍 Ver recomendaciones", type="primary",
-                 use_container_width=True, key="btn_nuevo"):
+                 width='stretch', key="btn_nuevo"):
         if len(semillas) < 3:
             st.warning("Puntuá al menos 3 películas para que podamos recomendarte algo.")
         else:
@@ -402,7 +402,7 @@ with tab_existente:
                 titulos_vistos[['title', 'rating']].rename(
                     columns={'title': 'Película', 'rating': 'Rating dado'}
                 ),
-                hide_index=True, use_container_width=True
+                hide_index=True, width='stretch'
             )
 
         mostrar_perfil_de_generos(
@@ -411,7 +411,7 @@ with tab_existente:
         )
 
     if st.button("🔍 Ver recomendaciones", type="primary",
-                 use_container_width=True, key="btn_existente"):
+                 width='stretch', key="btn_existente"):
         # sin spinner: con el modelo pre-entrenado esto es instantáneo
         recomendaciones = recomendar(userId=userId, alpha=alpha, n=n_recomendaciones)
 
