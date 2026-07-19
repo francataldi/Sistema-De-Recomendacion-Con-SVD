@@ -7,10 +7,12 @@ import requests
 import streamlit as st
 
 from recomendador import (
+    buscar_peliculas,
     explicar_recomendacion,
     peliculas_populares,
     recomendar_hibrido,
     recomendar_para_usuario_nuevo,
+    titulo_normalizado,
 )
 
 # ── Configuración de la página ───────────────────────────────
@@ -68,22 +70,13 @@ def limpiar_titulo(titulo):
     """
     Convierte un título de MovieLens en (título limpio, año) para buscarlo
     en TMDb. Ej: "Shawshank Redemption, The (1994)" -> ("The Shawshank
-    Redemption", 1994). MovieLens pone el artículo al final y el año entre
-    paréntesis; TMDb espera el título natural y el año aparte.
+    Redemption", 1994). El título limpio lo arma titulo_normalizado()
+    (utilidad compartida en recomendador.py); acá solo extraemos además el
+    año, que TMDb usa como parámetro aparte.
     """
     m = re.search(r'\((\d{4})\)\s*$', titulo)
     anio = int(m.group(1)) if m else None
-
-    limpio = re.sub(r'\s*\(\d{4}\)\s*$', '', titulo)
-    # algunos títulos traen un título alternativo entre paréntesis
-    # (ej. "Like Water For Chocolate (Como agua para chocolate)")
-    limpio = re.sub(r'\s*\([^)]*\)\s*$', '', limpio)
-    # artículo al final -> al principio
-    m = re.match(r'^(?P<resto>.+),\s+(?P<articulo>The|A|An|La|Le|Les|Los|El|Il|Das|Der|Die)$',
-                 limpio)
-    if m:
-        limpio = f"{m.group('articulo')} {m.group('resto')}"
-    return limpio.strip(), anio
+    return titulo_normalizado(titulo), anio
 
 
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
@@ -312,6 +305,80 @@ def mostrar_recomendaciones(recomendaciones, subtitulo, explicaciones=None):
                     st.caption(explicaciones[fila['movieId']])
 
 
+def quitar_del_carrito(movieId):
+    """
+    Callback del botón 'Sacar': saca la película del carrito y resetea el
+    slider correspondiente a 'No puntuar'. Se hace en un callback (corre
+    ANTES del rerun) para poder modificar el estado del widget sin que
+    Streamlit se queje de tocarlo después de haberlo instanciado.
+    """
+    st.session_state['carrito_semillas'].pop(movieId, None)
+    clave = f"sem_punt_{movieId}"
+    if clave in st.session_state:
+        st.session_state[clave] = 'No puntuar'
+
+
+OPCIONES_PUNTAJE = ['No puntuar', '1', '2', '3', '4', '5']
+
+
+def mostrar_tarjetas_puntuables(peliculas):
+    """
+    Muestra películas como tarjetas (póster + título + badges de género)
+    con un select_slider debajo para puntuarlas. El carrito de semillas en
+    st.session_state es la fuente de verdad: el slider se inicializa desde
+    ahí y sincroniza de vuelta en cada rerun, así una puntuación no se
+    pierde aunque la película deje de mostrarse (p. ej. al cambiar la
+    búsqueda). 'peliculas' es un DataFrame con al menos movieId y title.
+
+    Solo se piden pósters de las películas mostradas acá (<=12), reusando
+    buscar_poster() con su caché de 24hs — no hace falta rate-limiting
+    manual extra.
+    """
+    carrito = st.session_state['carrito_semillas']
+
+    if API_KEY_TMDB:
+        with st.spinner("Buscando pósters en TMDb..."):
+            posters = {
+                fila['title']: buscar_poster(fila['title'], API_KEY_TMDB)
+                for _, fila in peliculas.iterrows()
+            }
+    else:
+        posters = {}
+
+    POR_FILA = 4
+    filas = list(peliculas.iterrows())
+    for inicio in range(0, len(filas), POR_FILA):
+        columnas = st.columns(POR_FILA)
+        for col, (_, fila) in zip(columnas, filas[inicio:inicio + POR_FILA]):
+            mid = int(fila['movieId'])
+            clave = f"sem_punt_{mid}"
+            # sembramos el slider desde el carrito la primera vez que
+            # aparece (después su propio estado manda)
+            if clave not in st.session_state:
+                st.session_state[clave] = (
+                    str(carrito[mid]) if mid in carrito else 'No puntuar'
+                )
+            with col:
+                url = posters.get(fila['title'])
+                if url:
+                    st.image(url, width='stretch')
+                else:
+                    st.markdown(PLACEHOLDER_POSTER, unsafe_allow_html=True)
+                st.markdown(f"**{fila['title']}**")
+                badges = badges_de_generos(mid)
+                if badges:
+                    st.markdown(badges)
+                valor = st.select_slider(
+                    "Tu puntaje", options=OPCIONES_PUNTAJE, key=clave,
+                    label_visibility="collapsed",
+                )
+                # sincronizamos el carrito con lo que muestra el slider
+                if valor == 'No puntuar':
+                    carrito.pop(mid, None)
+                else:
+                    carrito[mid] = int(valor)
+
+
 # Cada modo vive en su propio tab. OJO: a diferencia del st.radio anterior,
 # con tabs AMBOS flujos se renderizan siempre (el tab no activo queda
 # oculto), por eso los widgets repetidos llevan key único.
@@ -322,38 +389,76 @@ with tab_nuevo:
     # El modelo colaborativo no sabe nada de un usuario que no estaba en el
     # entrenamiento, así que le pedimos que puntúe algunas películas
     # conocidas ("semillas") y recomendamos SOLO con el modelo de contenido.
+    #
+    # NOTA sobre el catálogo: MovieLens 100k no tiene nada posterior a abril
+    # de 1998, así que el buscador de abajo NO resuelve "no conozco ninguna
+    # película moderna" (no las hay en el dataset). Lo que resuelve es el
+    # otro problema: antes puntuabas a ciegas una lista de títulos en texto
+    # plano; ahora podés ver el póster y los géneros de cada una para saber
+    # de qué trata antes de decidir si la puntuás.
     st.markdown(
-        "Como el sistema todavía no te conoce, punteá **al menos 3** de estas "
-        "películas populares (dejá en *Sin puntuar* las que no viste). "
-        "Con eso armamos tu perfil de gustos por género."
+        "Como el sistema todavía no te conoce, buscá y puntuá **al menos 3** "
+        "películas que hayas visto. Con eso armamos tu perfil de gustos por "
+        "género. *(El catálogo es de MovieLens 100k: películas hasta 1998.)*"
     )
 
-    populares = peliculas_populares(ratings, movies, n=10)
-    opciones = ['Sin puntuar', '1', '2', '3', '4', '5']
+    # el carrito de semillas es la fuente de verdad; vive en session_state
+    # para no perderse con cada tecleo del buscador (cada uno es un rerun)
+    if 'carrito_semillas' not in st.session_state:
+        st.session_state['carrito_semillas'] = {}
+    carrito = st.session_state['carrito_semillas']
 
-    semillas = {}
-    for _, fila in populares.iterrows():
-        puntaje = st.select_slider(
-            fila['title'], options=opciones, value='Sin puntuar',
-            key=f"semilla_{fila['movieId']}"
-        )
-        if puntaje != 'Sin puntuar':
-            semillas[fila['movieId']] = int(puntaje)
+    query = st.text_input(
+        "🔎 Buscá una película",
+        placeholder="Por ejemplo: 'Star Wars', 'Toy Story', 'Godfather'…",
+        key="busqueda_semillas",
+    )
 
-    st.caption(f"Películas puntuadas: {len(semillas)} (mínimo 3)")
+    if query.strip():
+        resultados = buscar_peliculas(movies, query, n=12)
+        if resultados.empty:
+            st.info(
+                f"No encontré películas con «{query}». Probá con otro título "
+                "(recordá que el catálogo llega hasta 1998)."
+            )
+        else:
+            st.caption(f"{len(resultados)} resultado(s) — puntuá las que hayas visto:")
+            mostrar_tarjetas_puntuables(resultados)
+    else:
+        st.caption("Estas son las más populares del dataset — o buscá arriba:")
+        populares = peliculas_populares(ratings, movies, n=8)
+        mostrar_tarjetas_puntuables(populares)
 
-    if semillas:
+    # ── Carrito: lo que el usuario ya puntuó (venga de donde venga) ──
+    st.divider()
+    st.markdown("#### 🛒 Tu selección")
+    if carrito:
+        for mid in list(carrito.keys()):
+            c1, c2, c3 = st.columns([6, 2, 2])
+            c1.write(titulo_de[mid])
+            c2.write("⭐" * carrito[mid])
+            c3.button(
+                "❌ Sacar", key=f"quitar_{mid}",
+                on_click=quitar_del_carrito, args=(mid,),
+            )
+    else:
+        st.caption("Todavía no puntuaste ninguna película.")
+
+    st.caption(f"Películas puntuadas: {len(carrito)} (mínimo 3)")
+
+    if carrito:
         mostrar_perfil_de_generos(
-            pd.Series(semillas),
+            pd.Series(carrito),
             "📊 Tu perfil de gustos según lo que puntuaste"
         )
 
     if st.button("🔍 Ver recomendaciones", type="primary",
                  width='stretch', key="btn_nuevo"):
-        if len(semillas) < 3:
+        if len(carrito) < 3:
             st.warning("Puntuá al menos 3 películas para que podamos recomendarte algo.")
         else:
             # sin spinner: con el modelo pre-entrenado esto es instantáneo
+            semillas = dict(carrito)
             recomendaciones = recomendar_para_usuario_nuevo(
                 similitud_df, movies, semillas, n=n_recomendaciones
             )

@@ -7,8 +7,68 @@ desincronizarse. Las funciones reciben explícitamente el modelo y los datos
 (no usan variables globales), así se pueden probar sueltas desde el notebook.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
+
+# Artículos que MovieLens mueve al final del título ("Matrix, The").
+_ARTICULOS = r'The|A|An|La|Le|Les|Los|El|Il|Das|Der|Die'
+
+
+def titulo_normalizado(titulo):
+    """
+    Devuelve la forma "natural" de un título de MovieLens, lista para
+    buscar o mostrar:
+
+    - saca el año final "(1994)",
+    - saca un título alternativo entre paréntesis al final
+      (ej. "Like Water For Chocolate (Como agua para chocolate)"),
+    - mueve el artículo que MovieLens pone al final al principio
+      ("Matrix, The" -> "The Matrix").
+
+    Es utilidad COMPARTIDA: la usa tanto buscar_peliculas() (para tolerar
+    el artículo al buscar) como limpiar_titulo() en app.py (para armar la
+    query de TMDb). Vive acá, junto a la búsqueda, para no duplicarla.
+    """
+    limpio = re.sub(r'\s*\(\d{4}\)\s*$', '', titulo)
+    limpio = re.sub(r'\s*\([^)]*\)\s*$', '', limpio)
+    m = re.match(rf'^(?P<resto>.+),\s+(?P<articulo>{_ARTICULOS})$', limpio)
+    if m:
+        limpio = f"{m.group('articulo')} {m.group('resto')}"
+    return limpio.strip()
+
+
+def buscar_peliculas(movies, query, n=12):
+    """
+    Busca películas por título, tolerando el formato de MovieLens donde el
+    artículo va al final (ej. "Matrix, The (1999)" debe encontrarse
+    buscando "Matrix" o "The Matrix"). Devuelve hasta n resultados
+    ordenados por popularidad (si movies trae esa info en una columna
+    'cantidad') o alfabéticamente si no.
+
+    No es fuzzy matching: normaliza el artículo y hace un contains
+    case-insensitive contra el título tal cual Y contra su forma
+    normalizada, así "Matrix" y "The Matrix" encuentran lo mismo.
+    """
+    q = str(query).strip().lower()
+    if not q:
+        return movies.head(0)
+
+    titulos = movies['title']
+    normalizados = titulos.map(titulo_normalizado)
+    mask = (
+        titulos.str.lower().str.contains(q, regex=False)
+        | normalizados.str.lower().str.contains(q, regex=False)
+    )
+    resultado = movies[mask]
+
+    # popularidad si el dataframe la trae; si no, orden alfabético estable
+    if 'cantidad' in resultado.columns:
+        resultado = resultado.sort_values('cantidad', ascending=False)
+    else:
+        resultado = resultado.sort_values('title')
+    return resultado.head(n)
 
 
 def score_colaborativo(modelo_svd, userId, candidatas):
