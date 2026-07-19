@@ -21,7 +21,9 @@ El desafío central: la mayoría de los usuarios no vio la mayoría de las pelí
 La app de Streamlit está organizada en dos pestañas según quién la use:
 
 - **👤 Usuario del dataset:** ingresás un ID (1 a 943) y recibís tu Top-N híbrido. Antes de recomendar podés desplegar tu historial de películas vistas y un gráfico de tu perfil de gustos por género.
-- **✨ Usuario nuevo:** si el sistema no te conoce, puntuás al menos 3 películas populares ("semillas") y con eso se arma tu perfil de gustos para recomendarte por contenido (ver [Cold start](#modelo-híbrido)).
+- **✨ Usuario nuevo:** si el sistema no te conoce, armás tu perfil puntuando al menos 3 películas ("semillas") y con eso se recomienda por contenido (ver [Cold start](#modelo-híbrido)). Para elegirlas hay un **buscador por título**: escribís el nombre y aparecen los resultados con póster y géneros, así reconocés la película antes de puntuarla en vez de adivinar sobre un texto plano. El buscador tolera el formato de MovieLens, donde el artículo va al final (buscar *"The Godfather"* encuentra *"Godfather, The (1972)"*). Lo que vas puntuando queda en un **carrito editable** —podés sacar cualquier puntuación con su botón **❌ Sacar**— y si el buscador está vacío se muestran las películas más populares como punto de partida.
+
+  > ⚠️ **Límite del catálogo:** MovieLens 100k solo tiene películas hasta abril de 1998. El buscador ayuda a *identificar* películas viejas que la persona sí vio, pero **no** permite puntuar películas modernas: simplemente no existen en los datos. No resuelve la falta de contenido reciente, solo hace más fácil reconocer lo que sí está.
 
 Cada recomendación se muestra como una **tarjeta** con:
 
@@ -89,7 +91,7 @@ El valor óptimo de α se encontró maximizando NDCG@10 sobre un conjunto de pru
 **Qué resuelve el híbrido y qué no** (esto es importante decirlo con precisión):
 
 - **Cold start de películas nuevas**: lo resuelve el modelo de contenido, porque solo necesita los géneros de la película — no hace falta que nadie la haya rateado todavía.
-- **Cold start de usuarios nuevos**: *no* se resuelve automáticamente por ser híbrido. Ambos scores necesitan historial del usuario: el colaborativo necesita que el usuario haya estado en el entrenamiento, y el de contenido necesita saber qué películas le gustaron. Para usuarios nuevos, la app implementa un flujo de **películas semilla**: el usuario puntúa al menos 3 películas populares y con eso se calculan recomendaciones usando solo el modelo de contenido (el colaborativo no tiene factores aprendidos para un usuario que nunca vio).
+- **Cold start de usuarios nuevos**: *no* se resuelve automáticamente por ser híbrido. Ambos scores necesitan historial del usuario: el colaborativo necesita que el usuario haya estado en el entrenamiento, y el de contenido necesita saber qué películas le gustaron. Para usuarios nuevos, la app implementa un flujo de **películas semilla**: el usuario busca y puntúa al menos 3 películas que haya visto (ver el [buscador](#interfaz)) y con eso se calculan recomendaciones usando solo el modelo de contenido (el colaborativo no tiene factores aprendidos para un usuario que nunca vio).
 - **Sobre-especialización del contenido**: en el ranking Top-N, la mezcla 70/30 le gana a cada modelo por separado, aportando diversidad real.
 
 ---
@@ -148,6 +150,7 @@ Recomendador-SVD/
 ├── main.ipynb                   ← desarrollo completo paso a paso
 ├── recomendador.py              ← lógica de recomendación compartida (notebook + app)
 ├── app.py                       ← interfaz Streamlit
+├── test_app_flujos.py           ← tests de los flujos de la app (pytest + AppTest)
 ├── requirements.txt
 └── README.md
 ```
@@ -172,6 +175,11 @@ jupyter notebook main.ipynb
 
 # Lanzar la app
 streamlit run app.py
+
+# Instalar dependencias de desarrollo (para correr los tests)
+pip install -r requirements-dev.txt
+# (Opcional) Correr los tests de los flujos de la interfaz
+pytest test_app_flujos.py -v
 ```
 
 ---
