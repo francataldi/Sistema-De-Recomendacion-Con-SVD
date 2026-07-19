@@ -7,3 +7,7 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Secrets de Streamlit (API keys) — NUNCA versionar
+.streamlit/secrets.toml
+.streamlit/ 
