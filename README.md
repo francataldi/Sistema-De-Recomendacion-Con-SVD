@@ -3,7 +3,8 @@
 > Proyecto de portafolio · Licenciatura en Ciencias de Datos · UBA · 3er año
 
 <!-- TODO: actualizar tras el deploy con el link real de Streamlit Cloud -->
-**Demo en vivo:** próximamente (deploy pendiente)
+**Demo en vivo:** aún no desplegada — pendiente de deploy en Streamlit
+Community Cloud.
 
 ---
 
@@ -15,9 +16,33 @@ El desafío central: la mayoría de los usuarios no vio la mayoría de las pelí
 
 ---
 
-## Demo
+## Interfaz
 
-El sistema recibe un ID de usuario y devuelve las 10 películas más recomendadas, con un score visual. El slider de alpha permite experimentar con el balance entre los dos modelos en tiempo real.
+La app de Streamlit está organizada en dos pestañas según quién la use:
+
+- **👤 Usuario del dataset:** ingresás un ID (1 a 943) y recibís tu Top-N híbrido. Antes de recomendar podés desplegar tu historial de películas vistas y un gráfico de tu perfil de gustos por género.
+- **✨ Usuario nuevo:** si el sistema no te conoce, puntuás al menos 3 películas populares ("semillas") y con eso se arma tu perfil de gustos para recomendarte por contenido (ver [Cold start](#modelo-híbrido)).
+
+Cada recomendación se muestra como una **tarjeta** con:
+
+- **Póster de la película** (vía la API de TMDb). Los pósters son *opcionales*: si no hay API key configurada, la app avisa y sigue funcionando en modo texto, con un placeholder en lugar de la imagen.
+- **Tags de género de colores**, con un color fijo por género para reconocer patrones de un vistazo.
+- **Explicación del "por qué"**: para usuarios del dataset, la película de tu historial más parecida a la recomendada (ej. *"Similar a Cinema Paradiso, que calificaste con 5★"*); para usuarios nuevos, la semilla que más pesó en esa recomendación.
+- **Score visual** con una barra de progreso.
+
+En el **sidebar** están los controles de configuración: cantidad de recomendaciones y el slider de alpha, que permite experimentar en vivo con el balance entre los dos modelos.
+
+### Pósters vía TMDb — configuración de la API key
+
+Los pósters usan la [API de TMDb](https://www.themoviedb.org/settings/api). La key **nunca se sube al repo** ni se escribe en el código: se lee exclusivamente de `st.secrets["TMDB_API_KEY"]`. Configurala según dónde corras la app:
+
+- **Local:** creá el archivo `.streamlit/secrets.toml` (ya está en `.gitignore`) con:
+  ```toml
+  TMDB_API_KEY = "tu_key_aca"
+  ```
+- **Streamlit Community Cloud:** cargala en el panel *Settings → Secrets* de la app, con el mismo nombre `TMDB_API_KEY`.
+
+Sin key configurada, la app funciona igual: solo se muestra en modo texto, sin pósters.
 
 ---
 
@@ -163,6 +188,8 @@ streamlit run app.py
 | scikit-learn | Similitud coseno, split train/test |
 | matplotlib / seaborn | Gráficos del notebook |
 | Streamlit | Interfaz web y deploy |
+| requests | Llamadas a la API de TMDb (pósters) |
+| TMDb API | Pósters de las películas (opcional) |
 
 ---
 
