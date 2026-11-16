@@ -137,7 +137,7 @@ El proyecto evalúa dos tareas distintas, cada una con su métrica correcta:
 ## Estructura del repositorio
 
 ```
-Recomendador-SVD/
+Sistema-De-Recomendacion-Con-SVD/
 │
 ├── Data/                        ← NO está en el repo (se descarga aparte)
 │   └── ml-100k/
@@ -158,8 +158,8 @@ Recomendador-SVD/
 ## Correr localmente
 
 ```bash
-git clone https://github.com/francataldi/Recomendador-SVD.git
-cd Recomendador-SVD
+git clone https://github.com/francataldi/Sistema-De-Recomendacion-Con-SVD.git
+cd Sistema-De-Recomendacion-Con-SVD
 
 pip install -r requirements.txt
 
